@@ -164,7 +164,7 @@ env_config = {
     }
 }
 import os
-os.environ['UnrealEnv']='/home/wuk/UnrealEnv'
+os.environ['UnrealEnv']='/home/hulc/UnrealEnv'
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env-bin', default='Collection_v4_LinuxNoEditor/Collection/Binaries/Linux/Collection', help='The path to the UE4Editor binary')
