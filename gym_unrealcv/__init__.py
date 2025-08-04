@@ -110,7 +110,7 @@ maps = ['Greek_Island', 'supermarket', 'Brass_Gardens', 'Brass_Palace', 'Brass_S
             'QA_Holding_Cells_A', 'MiddleEast','track_train','Demo_Roof','demonstration_BUNKER','Map_ChemicalPlant_1','Old_Town','ParkingLot'
             ]
 
-Tasks = ['Rendezvous', 'Rescue', 'Track','Navigation','NavigationMulti']
+Tasks = ['Rendezvous', 'Rescue', 'Track','Navigation','NavigationMulti', 'CombatAirPatrol']
 Observations = ['Color', 'Depth', 'Rgbd', 'Gray', 'CG', 'Mask', 'Pose','MaskDepth','ColorMask']
 Actions = ['Discrete', 'Continuous', 'Mixed']
 # Env for general purpose active object tracking
@@ -139,7 +139,8 @@ for env in maps:
                 for task in Tasks:
                         name = f'Unreal{task}-{env}-{action}{obs}-v{i}'
                         setting_file = os.path.join(task, f'{env}.json')
-                        if task =='Navigation':
+                        if task =='Navigation' or task == 'CombatAirPatrol':
+                            task ='Navigation'
                             register(
                                 id=name,
                                 entry_point=f'gym_unrealcv.envs:{task}',
@@ -148,7 +149,7 @@ for env in maps:
                                         'observation_type': obs,
                                         'reset_type': i,
                                         },
-                                max_episode_steps=1000
+                                max_episode_steps=10000
                             )
                         else:
                             register(

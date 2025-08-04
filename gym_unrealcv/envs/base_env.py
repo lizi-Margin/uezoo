@@ -147,7 +147,9 @@ class UnrealCv_base(gym.Env):
         actions2move, actions2turn, actions2animate = self.action_mapping(actions, self.player_list)
         move_cmds = [self.unrealcv.set_move_bp(obj, actions2move[i], return_cmd=True) for i, obj in enumerate(self.player_list) if actions2move[i] is not None]
         head_cmds = [self.unrealcv.set_cam(obj, self.agents[obj]['relative_location'], actions2turn[i], return_cmd=True) for i, obj in enumerate(self.player_list) if actions2turn[i] is not None]
+        # head_cmds = []
         anim_cmds = [self.unrealcv.set_animation(obj, actions2animate[i], return_cmd=True) for i, obj in enumerate(self.player_list) if actions2animate[i] is not None]
+        # anim_cmds = []
         self.unrealcv.batch_cmd(move_cmds+head_cmds+anim_cmds, None)
         self.count_steps += 1
 
@@ -683,6 +685,7 @@ class UnrealCv_base(gym.Env):
         actions2animate = []
         actions2head = []
         actions2player = []
+        print(self.action_space)
         for i, obj in enumerate(player_list):
             action_space = self.action_space[i]
             act = actions[i]
@@ -700,7 +703,24 @@ class UnrealCv_base(gym.Env):
                 actions2animate.append(None)
                 actions2head.append(None)
             elif isinstance(action_space, spaces.Tuple):
-                for j, action in enumerate(actions[i]):
+                # for j, action in enumerate(actions[i]):
+                #     if j == 0:
+                #         if isinstance(action, int):
+                #             actions2move.append(self.agents[obj]["move_action"][action])
+                #         else:
+                #             actions2move.append(action)
+                #     elif j == 1:
+                #         if isinstance(action, int):
+                #             actions2head.append(self.agents[obj]["head_action"][action])
+                #         else:
+                #             actions2head.append(action)
+                #     elif j == 2:
+                #         actions2animate.append(self.agents[obj]["animation_action"][action])
+                for j in range(3):
+                    if j < len(actions[i]):
+                        action = actions[i][j]
+                    else:
+                        action = None
                     if j == 0:
                         if isinstance(action, int):
                             actions2move.append(self.agents[obj]["move_action"][action])
@@ -712,7 +732,11 @@ class UnrealCv_base(gym.Env):
                         else:
                             actions2head.append(action)
                     elif j == 2:
-                        actions2animate.append(self.agents[obj]["animation_action"][action])
+                        if action is not None:
+                            actions2animate.append(self.agents[obj]["animation_action"][action])
+                        else:
+                            actions2animate.append(action)
+
         return actions2move, actions2head, actions2animate
 
 
