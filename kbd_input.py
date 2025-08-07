@@ -49,13 +49,13 @@ def get_key_action_player():
     action = list(action)  # Convert tuple to list for modification
     action[0] = list(action[0])  # Convert inner tuple to list for modification
 
-    if key_state['i']:
+    if key_state['w']:
         action[0][1] = 100
-    if key_state['k']:
+    if key_state['s']:
         action[0][1] = -100
-    if key_state['j']:
+    if key_state['a']:
         action[0][0] = -30
-    if key_state['l']:
+    if key_state['d']:
         action[0][0] = 30
     if key_state['space']:
         action[2] = 1

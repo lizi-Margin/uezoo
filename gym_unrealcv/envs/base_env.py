@@ -130,6 +130,7 @@ class UnrealCv_base(gym.Env):
         Returns:
             tuple: Observations, rewards, done flag, and additional info.
         """
+        # print(f'{self.count_steps} actions: {actions}')
         info = dict(
             Collision=0,
             Done=False,
@@ -150,6 +151,8 @@ class UnrealCv_base(gym.Env):
         # head_cmds = []
         anim_cmds = [self.unrealcv.set_animation(obj, actions2animate[i], return_cmd=True) for i, obj in enumerate(self.player_list) if actions2animate[i] is not None]
         # anim_cmds = []
+        # hide_cmds = [self.unrealcv.set_hide_obj(obj, return_cmd=True) for i, obj in enumerate(self.player_list)]
+        # hide_cmds = [self.unrealcv.set_hide_obj(self.player_list[1], return_cmd=True)]
         self.unrealcv.batch_cmd(move_cmds+head_cmds+anim_cmds, None)
         self.count_steps += 1
 
@@ -158,6 +161,8 @@ class UnrealCv_base(gym.Env):
         self.obj_poses = obj_poses
         observations = self.prepare_observation(self.observation_type, imgs, masks, depths, obj_poses)
         self.img_show = self.prepare_img2show(self.protagonist_id, observations)
+
+        # print(f'{self.count_steps} obs: {observations}')
 
         pose_obs, relative_pose = self.get_pose_states(obj_poses)
 
@@ -689,7 +694,7 @@ class UnrealCv_base(gym.Env):
         actions2animate = []
         actions2head = []
         actions2player = []
-        print(self.action_space)
+        # print(self.action_space)
         for i, obj in enumerate(player_list):
             action_space = self.action_space[i]
             act = actions[i]

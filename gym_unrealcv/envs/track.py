@@ -56,12 +56,34 @@ class Track(UnrealCv_base):
         info['Reward'] = rewards
         info['metrics'] = metrics
 
+        # save the trajectory
+        self.trajectory.append(info['Pose'][self.tracker_id][:6]) # pos rot
+        info['Trajectory'] = self.trajectory
+
+        # target_pos = self.unrealcv.get_obj_location(self.player_list[self.target_id])
+        # target_rot = self.unrealcv.get_obj_rotation(self.player_list[self.target_id])
+        # tracker_pos = self.unrealcv.get_obj_location(self.player_list[self.tracker_id])
+        # tracker_rot = self.unrealcv.get_obj_rotation(self.player_list[self.tracker_id])
+        # print("target_pos", target_pos)
+        # print("target_rot", target_rot)
+        # print("tracker_pos", tracker_pos)
+        # print("tracker_rot", tracker_rot)
+        # print("info['Pose']", info['Pose'])
+
+        # print("trajectory", self.trajectory)
+
         return obs, rewards, done, info
 
     def reset(self):
+        hide_cmds = [self.unrealcv.set_show_obj(obj, return_cmd=True) for i, obj in enumerate(self.player_list)]
+        self.unrealcv.batch_cmd(hide_cmds, None)
+        self.trajectory = []
         # initialize the environment
         observations = super(Track, self).reset()
         target_pos = self.unrealcv.get_obj_location(self.player_list[self.target_id])
+        # target_rot = self.unrealcv.get_obj_rotation(self.player_list[self.target_id])
+        # tracker_pos = self.unrealcv.get_obj_location(self.player_list[self.tracker_id])
+        # tracker_rot = self.unrealcv.get_obj_rotation(self.player_list[self.tracker_id])
         print(target_pos)
         self.unrealcv.nav_to_goal(self.player_list[self.target_id], target_pos)
         time.sleep(1)
@@ -95,28 +117,54 @@ class Track(UnrealCv_base):
         self.unrealcv.set_obj_location(tracker_name, cam_pos_exp)
         self.unrealcv.set_obj_rotation(tracker_name, [0, yaw_exp, 0])
         # reset if cannot see the target at initial frame
-        # try:
-        #     while self.unwrapped.unrealcv.check_visibility(self.cam_list[self.tracker_id],self.player_list[self.target_id]) == 0:
-        #         target_locations = self.sample_init_pose()
-        #         self.unrealcv.set_obj_location(self.player_list[self.target_id], target_locations[0])
-        #         self.unrealcv.set_cam(self.player_list[self.target_id],
-        #                               self.agents[self.player_list[self.target_id]]['relative_location'],
-        #                               self.agents[self.player_list[self.target_id]]['relative_rotation'])
-        #         target_pos = self.unrealcv.get_obj_location(self.player_list[self.target_id])
-        #         # initialize the tracker
-        #         cam_pos_exp, yaw_exp = self.get_tracker_init_point(target_pos, self.reward_params["exp_distance"])
-        #         # set tracker location
-        #         tracker_name = self.player_list[self.tracker_id]
-        #         self.unrealcv.set_obj_location(tracker_name, cam_pos_exp)
-        #         self.unrealcv.set_obj_rotation(tracker_name, [0, yaw_exp, 0])
-        #         time.sleep(1)
-        # except:
-        #     pass
+        try:
+            while self.unwrapped.unrealcv.check_visibility(self.cam_list[self.tracker_id],self.player_list[self.target_id]) == 0:
+                print("retrying born spot")
+                target_locations = self.sample_init_pose()
+                self.unrealcv.set_obj_location(self.player_list[self.target_id], target_locations[0])
+                self.unrealcv.set_cam(self.player_list[self.target_id],
+                                      self.agents[self.player_list[self.target_id]]['relative_location'],
+                                      self.agents[self.player_list[self.target_id]]['relative_rotation'])
+                target_pos = self.unrealcv.get_obj_location(self.player_list[self.target_id])
+                # initialize the tracker
+                cam_pos_exp, yaw_exp = self.get_tracker_init_point(target_pos, self.reward_params["exp_distance"])
+                # set tracker location
+                tracker_name = self.player_list[self.tracker_id]
+                self.unrealcv.set_obj_location(tracker_name, cam_pos_exp)
+                self.unrealcv.set_obj_rotation(tracker_name, [0, yaw_exp, 0])
+                time.sleep(1)
+        except:
+            pass
 
         # update the observation
         observations, self.obj_poses, self.img_show = self.update_observation(self.player_list, self.cam_list, self.cam_flag, self.observation_type)
         self.count_lost = 0
+        tracker_pos = self.unrealcv.get_obj_location(self.player_list[self.tracker_id])
+        tracker_rot = self.unrealcv.get_obj_rotation(self.player_list[self.tracker_id])
+        Pose = tracker_pos + tracker_rot
+        self.trajectory.append(Pose)
+        assert isinstance(Pose, list) and len(Pose) == 6, f"{Pose}"
+
         return observations
+    
+    def replay(self, action, handle_obs, episode_dir):
+        import tqdm
+        self.unrealcv.set_hide_obj(self.player_list[self.target_id])
+        time.sleep(0.5)
+        for i, pos_rot in tqdm.tqdm(enumerate(self.trajectory), total=len(self.trajectory)):
+            assert len(pos_rot) == 6
+            pos = pos_rot[:3]
+            rot = pos_rot[3:]
+
+            # set tracker location
+            tracker_name = self.player_list[self.tracker_id]
+            self.unrealcv.set_obj_location(tracker_name, pos)
+            self.unrealcv.set_obj_rotation(tracker_name, rot)
+            # time.sleep(1)
+            obs, rewards, done, info = super(Track, self).step(action)
+
+            handle_obs(obs, episode_dir, str(i) + "_REPLAY")
+
 
     def track_metrics(self, relative_pose, tracker_id, target_id):
         # compute the relative relation (collision, in-the-view, misleading) among agents for rewards and evaluation metrics
