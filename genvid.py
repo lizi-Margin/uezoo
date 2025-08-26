@@ -36,20 +36,31 @@ def combine_3vids(video1_path, video2_path, video3_path, output_path):
 
 def run_combine_3vids(target_dir):
     
-    # 构建完整文件路径
-    video1_path = os.path.join(target_dir, 'rgb.mp4')
-    video2_path = os.path.join(target_dir, 'mask_filtered.mp4')
-    video3_path = os.path.join(target_dir, 'REPLAY_rgb.mp4')
-    output_path = os.path.join(target_dir, 'rgb|mask_filtered|REPLAY_rgb.mp4')
-    
-    # 调用函数合并视频
-    combine_3vids(video1_path, video2_path, video3_path, output_path)
+    if os.path.exists(os.path.join(target_dir, 'HIDE_rgb.mp4')):
+        video1_path = os.path.join(target_dir, 'rgb.mp4')
+        video2_path = os.path.join(target_dir, 'mask_filtered.mp4')
+        video3_path = os.path.join(target_dir, 'HIDE_rgb.mp4')
+        output_path = os.path.join(target_dir, 'rgb+mask_filtered+HIDE_rgb.mp4')
+        combine_3vids(video1_path, video2_path, video3_path, output_path)
+    elif os.path.exists(os.path.join(target_dir, 'rgb_no_target.mp4')):
+        if os.path.exists(os.path.join(target_dir, 'mask_filtered.mp4')):
+            video1_path = os.path.join(target_dir, 'rgb.mp4')
+            video2_path = os.path.join(target_dir, 'mask_filtered.mp4')
+            video3_path = os.path.join(target_dir, 'rgb_no_target.mp4')
+            output_path = os.path.join(target_dir, 'rgb+mask_filtered+rgb_no_target.mp4')
+            combine_3vids(video1_path, video2_path, video3_path, output_path)
+        elif os.path.exists(os.path.join(target_dir, 'mask.mp4')):
+            video1_path = os.path.join(target_dir, 'rgb.mp4')
+            video2_path = os.path.join(target_dir, 'mask.mp4')
+            video3_path = os.path.join(target_dir, 'rgb_no_target.mp4')
+            output_path = os.path.join(target_dir, 'rgb+mask+rgb_no_target.mp4')
+            combine_3vids(video1_path, video2_path, video3_path, output_path)
 
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='使用cv2将n_xxx.png格式的图片序列转换为xxx.mp4视频')
     parser.add_argument('--input-dir')
-    parser.add_argument('--fps', type=int, default=5)
+    parser.add_argument('--fps', type=int, default=25)
     args = parser.parse_args()
 
     # 确定输出目录（与图片同目录）
@@ -57,7 +68,8 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
 
     # 正则表达式匹配 n_xxx.png 格式的文件名
-    pattern = re.compile(r'^(\d+)_(.+)\.png$')
+    pattern_png = re.compile(r'^(\d+)_(.+)\.png$')
+    pattern_bmp = re.compile(r'^(\d+)_(.+)\.bmp$')
 
     # 按序列名分组
     sequences = defaultdict(list)
@@ -65,7 +77,15 @@ def main():
     # 遍历目录中的所有png文件
     for filename in os.listdir(args.input_dir):
         if filename.lower().endswith('.png'):
-            match = pattern.match(filename)
+            match = pattern_png.match(filename)
+            if match:
+                # 提取序号和序列名
+                frame_num = int(match.group(1))
+                seq_name = match.group(2)
+                file_path = os.path.join(args.input_dir, filename)
+                sequences[seq_name].append((frame_num, file_path))
+        elif filename.lower().endswith('.bmp'):
+            match = pattern_bmp.match(filename)
             if match:
                 # 提取序号和序列名
                 frame_num = int(match.group(1))

@@ -206,6 +206,7 @@ class UnrealCv_base(gym.Env):
         init_poses = self.sample_init_pose(self.random_init, len(self.player_list))
         for i, obj in enumerate(self.player_list):
             self.unrealcv.set_obj_location(obj, init_poses[i])
+            self.unrealcv.set_obj_rotation(obj, [0, 0, 0])
             # set view point
             self.unrealcv.set_cam(obj, self.agents[obj]['relative_location'], self.agents[obj]['relative_rotation'])
 

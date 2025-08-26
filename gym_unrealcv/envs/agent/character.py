@@ -491,10 +491,10 @@ class Character_API(UnrealCv_API):
                 # cmd_list.append(self.get_image(cam_id, 'depth', 'bmp', return_cmd=True))
 
         decoders = [self.decoder.decode_map[self.decoder.cmd2key(cmd)] for cmd in cmd_list]
-        try:
-            res_list = self.batch_cmd(cmd_list, decoders)
-        except:
-            print('batch cmd error')
+        # try:
+        res_list = self.batch_cmd(cmd_list, decoders)
+        # except:
+            # print('batch cmd error')
         obj_pose_list = []
         cam_pose_list = []
         img_list = []

@@ -21,9 +21,9 @@ class RandomAgent(object):
         return self.action_space.sample()
 
 
-def handle_obs(obs, episode_dir, count_steps):
-    rgb = obs[0][..., :3]
-    mask = obs[0][..., 3:]
+def handle_obs(rgb, mask, rgb_no_target, episode_dir, count_steps):
+    # rgb = obs[0][..., :3]
+    # mask = obs[0][..., 3:]
 
     white_zone = (mask[:, :, 0] == 255) & (mask[:, :, 1] == 255) & (mask[:, :, 2] == 255)
     # black_zone = (mask[:, :, 0] == 0) & (mask[:, :, 1] == 0) & (mask[:, :, 2] == 0)
@@ -34,11 +34,12 @@ def handle_obs(obs, episode_dir, count_steps):
     # mask_filtered[black_zone] = 50
     mask_filtered[green_zone] = 255
 
-    cv2.imwrite(f"{episode_dir}/{count_steps}_rgb.png", rgb)
-    cv2.imwrite(f"{episode_dir}/{count_steps}_mask.png", mask)
+    # cv2.imwrite(f"{episode_dir}/{count_steps}_rgb.png", rgb)
     cv2.imwrite(f"{episode_dir}/{count_steps}_mask_filtered.png", mask_filtered)
-    # cv2.imshow('show', mask_filtered)
-    cv2.imshow('show', mask)
+    cv2.imshow('mask_filtered', mask_filtered)
+    cv2.imshow('mask', mask)
+    cv2.imshow('rgb', rgb)
+    cv2.imshow('rgb_no_target', rgb_no_target)
     cv2.waitKey(1)
 
 
@@ -108,46 +109,29 @@ if __name__ == '__main__':
             action_1 = agent_1.act(obj_poses[1])
             action_other_npc = [agent_other_npc[idx].act(obj_poses[idx + 2], obj_poses[1]) for idx in range(len(agent_other_npc))]
 
-            # 暂停后获取obs再resume 保证同步 运行速度损失不明显
-            env.unwrapped.unrealcv.set_pause()
-            assert env.unwrapped.unrealcv.get_is_paused()
-
-            # test_img = env.unwrapped.unrealcv.get_objlit(
-            #     env.unwrapped.cam_list[env.unwrapped.tracker_id],
-            #     'bmp',
-            #     env.unwrapped.player_list[env.unwrapped.target_id]
-            # )
-            # env.unwrapped.unrealcv.get_hwobs(
-            #     env.unwrapped.cam_list[env.unwrapped.tracker_id],
-            #     f"C:\\Users\\hulc\\Desktop\\{count_step}.bmp",
-            #     env.unwrapped.player_list[env.unwrapped.target_id]
-            # )
-
-            obs = env.unwrapped.get_obs()
-
-            env.unwrapped.unrealcv.set_hide_obj(env.unwrapped.player_list[env.unwrapped.target_id])
-            hide_obs = env.unwrapped.get_obs()
-            env.unwrapped.unrealcv.set_show_obj(env.unwrapped.player_list[env.unwrapped.target_id])
-
-            env.unwrapped.unrealcv.set_resume()
-            assert not env.unwrapped.unrealcv.get_is_paused()
-
+            bmp_path = os.path.abspath(f"{episode_dir}/{count_step}")
+            env.unwrapped.unrealcv.get_hwobs(
+                env.unwrapped.cam_list[env.unwrapped.tracker_id],
+                bmp_path + '.bmp',
+                env.unwrapped.player_list[env.unwrapped.target_id]
+            )
             _, __, done, info = env.step([action_0, action_1] + action_other_npc)
             #
 
-            # test_img_path = f"C:\\Users\\hulc\\Desktop\\{count_step}_rgb.bmp"
-            # if os.path.exists(test_img_path):
-            #     test_img = cv2.imread(
-            #         test_img_path,
-            #         cv2.IMREAD_COLOR
-            #     )
-            #     cv2.imshow('test_img', test_img)
-            #     cv2.waitKey(1)
-            # else:
-            #     print(test_img_path, "not found")
+            rgb_img = cv2.imread(
+                bmp_path + '_rgb.bmp',
+                cv2.IMREAD_COLOR
+            )
+            mask_img = cv2.imread(
+                bmp_path + '_mask.bmp',
+                cv2.IMREAD_COLOR
+            )
+            rgb_no_target_img = cv2.imread(
+                bmp_path + '_rgb_no_target.bmp',
+                cv2.IMREAD_COLOR
+            )
 
-            handle_obs(obs, episode_dir, str(count_step))
-            handle_obs(hide_obs, episode_dir, str(count_step) + "_HIDE")
+            handle_obs(rgb_img, mask_img, rgb_no_target_img, episode_dir, str(count_step))
             action_traj['agent_0'].append(action_0)
             action_traj['agent_1'].append(action_1)
 

@@ -9,7 +9,7 @@ from kbd_input import get_key_action_drone, get_key_action_player
 
 if __name__ == '__main__':
     env = gym.make('UnrealCombatAirPatrol-SuburbNeighborhood_Day-MixedColor-v0')
-    env = configUE.ConfigUEWrapper(env, offscreen=True, resolution=(240, 240))
+    env = configUE.ConfigUEWrapper(env, offscreen=False, resolution=(240, 240))
     # env.unwrapped.agents_category=['player']
     env.unwrapped.agents_category=['drone']
     

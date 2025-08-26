@@ -261,6 +261,40 @@ class UnrealCv_API(object):
             cv2.imshow('image_'+viewmode, image)
             cv2.waitKey(1)
         return image
+    
+    def get_hwobs(self, cam_id, mode: str, obj_id):
+        assert mode.endswith('.bmp'), f"{mode}"
+
+        cmd = f'vget /camera/{cam_id}/hwobsv2 {mode} {obj_id}'
+        self.client.request(cmd)
+        return 
+        
+    def get_oneobjmask(self, cam_id, mode, obj_id):
+        assert mode == 'bmp'
+        cmd = f'vget /camera/{cam_id}/oneobjmask {mode} {obj_id}'
+        image = self.decoder.decode_img(self.client.request(cmd), mode, inverse=False)
+        return image
+    
+    def start_record(self, cam_id, mode, time_s, fps=25, target_to_hide=None):
+        assert time_s > 0
+        
+        if '.' in mode:
+            mode = os.path.abspath(mode)
+
+        cmd = f'vset /camera/{cam_id}/record {mode} {time_s} {fps}'
+        if target_to_hide is not None: cmd += f" {target_to_hide}"
+        print(cmd)
+        self.client.request(cmd)
+    
+    def get_record_status(self, cam_id):
+        cmd = f'vget /camera/{cam_id}/record'
+        res = self.client.request(cmd)
+        if res == 'true':
+            return True
+        elif res == 'false':
+            return False
+        else:
+            assert False, f"Error: get_record_status: {res}"
 
     def get_depth(self, cam_id, inverse=False, return_cmd=False, show=False):  # get depth from unrealcv in npy format
         """
@@ -1394,7 +1428,11 @@ class MsgDecoder(object):
         Raises:
             ValueError: If image decoding fails.
         """
-        nparr = np.frombuffer(res, np.uint8)
+        try:
+            nparr = np.frombuffer(res, np.uint8)
+        except TypeError as e:
+            print("error bmp binary: ", res)
+            raise e
         
         # Decode image using OpenCV
         img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)

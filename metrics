@@ -1,0 +1,52 @@
+HUAWEI_Project-ContinuousColorMask
+2 agents (0 hidden)
+
+naive method (start_track_record.py) (通过python端的pause, set_hide/show等api获得同步图像)
+Fps:3.8303708162167864
+Fps:4.044379655062754
+Fps:3.924520748664941
+Fps:4.248079288734685
+Fps:3.755522227686665
+Fps:4.085311723412378
+Fps:4.171902137094444
+
+
+
+GetHWObsV1 (start_track_record_hwobs.py) (在unrealcv(c++)中顺序调用Sensor的GetLit, GetSeg方法渲染图像, 但没有对Capture和ReadPixel的顺序进行重排)
+Fps:7.852217818363808
+Fps:7.651452246732438
+Fps:7.713043924881721
+Fps:7.978710523439854
+Fps:7.336602321829603
+Fps:7.654980538978521
+Fps:7.094492415625595
+Fps:7.723216164886116
+
+
+GetHWObsV2 (start_track_record_hwobs.py) (GetLitSeg 对正常Lit和Mask的Capture和ReadPixel的顺序进行重排)
+Fps:7.855632259892978
+Fps:8.34682994594476
+Fps:7.956888702596605
+Fps:7.548661491115056
+Fps:8.08681252350168
+Fps:7.67753160611033
+Fps:7.745671847057227
+Fps:7.44376125978072
+Fps:7.917645391194982
+Fps:7.516084267010095
+Fps:8.21922844165827
+
+
+GetHWObsV3 (start_track_record_hwobs.py) (全部令重排)
+提升不明显
+
+StartRecord (start_track_record_hwobs_faster.py) (Unreal端完成所有录制逻辑) (20s 25fps)
+推算渲染速度相对真实时间Fps (仅参考):24.463292736814893
+推算渲染速度相对真实时间Fps (仅参考):24.360921798791605
+推算渲染速度相对真实时间Fps (仅参考):24.479469895988704
+推算渲染速度相对真实时间Fps (仅参考):24.56338929026941
+推算渲染速度相对真实时间Fps (仅参考):24.70357330547949
+推算渲染速度相对真实时间Fps (仅参考):24.77009507849868
+推算渲染速度相对真实时间Fps (仅参考):24.50028846210125
+
+

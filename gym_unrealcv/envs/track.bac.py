@@ -50,23 +50,38 @@ class Track(UnrealCv_base):
 
     def step(self, action):
         obs, rewards, done, info = super(Track, self).step(action)
-        return obs, rewards, done, info
-    
-    def step_action(self, actions):
-        actions2move, actions2turn, actions2animate = self.action_mapping(actions, self.player_list)
-        move_cmds = [self.unrealcv.set_move_bp(obj, actions2move[i], return_cmd=True) for i, obj in enumerate(self.player_list) if actions2move[i] is not None]
-        head_cmds = [self.unrealcv.set_cam(obj, self.agents[obj]['relative_location'], actions2turn[i], return_cmd=True) for i, obj in enumerate(self.player_list) if actions2turn[i] is not None]
-        # head_cmds = []
-        anim_cmds = [self.unrealcv.set_animation(obj, actions2animate[i], return_cmd=True) for i, obj in enumerate(self.player_list) if actions2animate[i] is not None]
-        # anim_cmds = []
-        # hide_cmds = [self.unrealcv.set_hide_obj(obj, return_cmd=True) for i, obj in enumerate(self.player_list)]
-        # hide_cmds = [self.unrealcv.set_hide_obj(self.player_list[1], return_cmd=True)]
-        self.unrealcv.batch_cmd(move_cmds+head_cmds+anim_cmds, None)
-        self.count_steps += 1
+        try:
+            relative_pose = info['Relative_Pose']
+            # compute the useful metrics for rewards and done condition
+            metrics, score4tracker = self.track_metrics(relative_pose, self.tracker_id, self.target_id)
 
-        obj_poses, cam_poses, imgs, masks, depths = self.unrealcv.get_pose_img_batch(self.player_list, self.cam_list, [True, False, False, False])
-        self.obj_poses = obj_poses
-        return None
+            # prepare the info
+            info['Distance'], info['Direction'] = relative_pose[self.tracker_id][self.target_id]
+            info['Relative_Pose'] = relative_pose
+            rewards = self.get_rewards(score4tracker, metrics, self.tracker_id, self.target_id)
+
+            info['Reward'] = rewards
+            info['metrics'] = metrics
+
+            # save the trajectory
+            self.trajectory.append(info['Pose'][self.tracker_id][:6]) # pos rot
+            info['Trajectory'] = self.trajectory
+
+            # target_pos = self.unrealcv.get_obj_location(self.player_list[self.target_id])
+            # target_rot = self.unrealcv.get_obj_rotation(self.player_list[self.target_id])
+            # tracker_pos = self.unrealcv.get_obj_location(self.player_list[self.tracker_id])
+            # tracker_rot = self.unrealcv.get_obj_rotation(self.player_list[self.tracker_id])
+            # print("target_pos", target_pos)
+            # print("target_rot", target_rot)
+            # print("tracker_pos", tracker_pos)
+            # print("tracker_rot", tracker_rot)
+            # print("info['Pose']", info['Pose'])
+
+            # print("trajectory", self.trajectory)
+        except Exception:
+            pass
+
+        return obs, rewards, done, info
 
     def reset(self):
         hide_cmds = [self.unrealcv.set_show_obj(obj, return_cmd=True) for i, obj in enumerate(self.player_list)]
@@ -162,7 +177,93 @@ class Track(UnrealCv_base):
 
         return observations
     
+    def replay(self, action, handle_obs, episode_dir):
+        import tqdm
+        self.unrealcv.set_hide_obj(self.player_list[self.target_id])
+        time.sleep(0.5)
+        for i, pos_rot in tqdm.tqdm(enumerate(self.trajectory), total=len(self.trajectory)):
+            assert len(pos_rot) == 6
+            pos = pos_rot[:3]
+            rot = pos_rot[3:]
 
+            # set tracker location
+            tracker_name = self.player_list[self.tracker_id]
+            self.unrealcv.set_obj_location(tracker_name, pos)
+            self.unrealcv.set_obj_rotation(tracker_name, rot)
+            # time.sleep(1)
+            obs, rewards, done, info = super(Track, self).step(action)
+
+            handle_obs(obs, episode_dir, str(i) + "_REPLAY")
+
+
+    def track_metrics(self, relative_pose, tracker_id, target_id):
+        # compute the relative relation (collision, in-the-view, misleading) among agents for rewards and evaluation metrics
+        info = dict()
+        relative_dis = relative_pose[:, :, 0]
+        relative_ori = relative_pose[:, :, 1]
+        collision_mat = np.zeros_like(relative_dis)
+        collision_mat[np.where(relative_dis < 100)] = 1
+        collision_mat[np.where(np.fabs(relative_ori) > 45)] = 0  # collision should be at the front view
+        info['collision'] = collision_mat
+
+        info['dis_ave'] = relative_dis.mean() # average distance among players, regard as a kind of density metric
+
+        # if in the tracker's view
+        view_mat = np.zeros_like(relative_ori)
+        view_mat[np.where(np.fabs(relative_ori) < 45)] = 1
+        view_mat[np.where(relative_dis > self.reward_params['max_distance'])] = 0
+        view_mat_tracker = view_mat[tracker_id]
+        # how many distractors are observed
+        info['d_in'] = view_mat_tracker.sum() - view_mat_tracker[target_id] - view_mat_tracker[tracker_id]  # distractor in the observable area
+        info['target_viewed'] = view_mat_tracker[target_id]  # target in the observable area
+
+        # detect target mask to determine if in the view (not work for some environment, which cannot rendering mask, like industrialArea)
+        target_percent = self.unwrapped.unrealcv.check_visibility(self.cam_list[self.tracker_id],
+                                                                  self.player_list[self.target_id])
+        info['target_viewed'] = int(target_percent > 0 and view_mat_tracker[target_id])
+
+        if target_percent <= 0:
+            self.count_lost += 1
+        else:
+            self.count_lost = 0
+
+        relative_oir_norm = np.fabs(relative_ori-self.reward_params['exp_angle']) / 45.0
+        relation_norm = np.fabs(relative_dis - self.reward_params['exp_distance'])/self.reward_params['max_distance'] + relative_oir_norm
+        reward_tracker = 1 - relation_norm[0]  # measuring the quality among tracker to others
+        info['tracked_id'] = np.argmax(reward_tracker)  # which one is tracked
+        info['perfect'] = info['target_viewed'] * (info['d_in'] == 0) * (reward_tracker[1] > 0.5)
+        info['mislead'] = 0
+        if info['tracked_id'] > 1 and reward_tracker[info['tracked_id']] > 0.5: # only when target is far away to the center and distracotr is close
+            advantage = reward_tracker[info['tracked_id']] - reward_tracker[1]
+            if advantage > 1:
+                info['mislead'] = info['tracked_id']
+
+        return info, reward_tracker
+
+    def get_rewards(self, score4tracker, metrics, tracker_id, target_id):
+        rewards = []
+        mask = np.ones(metrics['collision'][tracker_id].shape, dtype=bool)
+        mask[tracker_id] = False
+        tracker_collision = metrics['collision'][tracker_id]
+        if self.reward_type == 'dense':
+            r_tracker = score4tracker[target_id] - np.max(tracker_collision[mask])  #
+            r_target = -score4tracker[target_id]
+        elif self.reward_type == 'sparse':
+            r_tracker = 1 if metrics['perfect'] > 0 else -1
+            r_target = -r_tracker
+
+        for i in range(len(self.player_list)):
+            if i == tracker_id:
+                rewards.append(r_tracker)
+            elif i == target_id:  # target, try to run away
+                rewards.append(r_target - tracker_collision[i])
+            else:  # distractors, try to mislead tracker, and improve the target's reward.
+                r_d = r_target + score4tracker[i]  # try to appear in the tracker's view
+                r_d -= tracker_collision[i]
+                if 'sparse' in self.reward_type:
+                    r_d = 1 if r_d > 0 else -1
+                rewards.append(r_d)
+        return np.array(rewards)
 
     def get_tracker_init_point(self, target_pos, distance, direction=None):
         if direction is None:

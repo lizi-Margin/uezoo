@@ -213,7 +213,6 @@ class RunUnreal():
             tuple: The root path and the binary path.
         """
         part_path = path.split(os.sep)
-        print(part_path)
         id_binaries = part_path.index('Binaries')
         if not part_path[0].startswith('/'):
             part_path[0] = '/' + part_path[0]
@@ -363,7 +362,6 @@ class RunDocker():
             str: The IP address of the Docker container.
         """
         path2binary = os.path.join(self.path2env, ENV_BIN)
-        print(path2binary)
         if not os.path.exists(path2binary):
             warnings.warn('Did not find unreal environment, Please move your binary file to env/UnrealEnv')
             sys.exit()

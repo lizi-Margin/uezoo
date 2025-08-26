@@ -1,6 +1,6 @@
-import time
 import gym
 import cv2
+import json
 import time
 import random
 import os, sys
@@ -21,9 +21,20 @@ class RandomAgent(object):
         return self.action_space.sample()
 
 
-def handle_obs(obs, episode_dir, count_steps):
-    rgb = obs[0][..., :3]
-    mask = obs[0][..., 3:]
+def handle_obs(episode_dir, count_steps, bmp_path):
+    # rgb = cv2.imread(
+    #     bmp_path + '_rgb.bmp',
+    #     cv2.IMREAD_COLOR
+    # )
+    mask = cv2.imread(
+        bmp_path + '_mask.bmp',
+        cv2.IMREAD_COLOR
+    )
+    # rgb_no_target = cv2.imread(
+    #     bmp_path + '_rgb_no_target.bmp',
+    #     cv2.IMREAD_COLOR
+    # )
+
 
     white_zone = (mask[:, :, 0] == 255) & (mask[:, :, 1] == 255) & (mask[:, :, 2] == 255)
     # black_zone = (mask[:, :, 0] == 0) & (mask[:, :, 1] == 0) & (mask[:, :, 2] == 0)
@@ -34,19 +45,20 @@ def handle_obs(obs, episode_dir, count_steps):
     # mask_filtered[black_zone] = 50
     mask_filtered[green_zone] = 255
 
-    cv2.imwrite(f"{episode_dir}/{count_steps}_rgb.png", rgb)
-    cv2.imwrite(f"{episode_dir}/{count_steps}_mask.png", mask)
+    # cv2.imwrite(f"{episode_dir}/{count_steps}_rgb.png", rgb)
     cv2.imwrite(f"{episode_dir}/{count_steps}_mask_filtered.png", mask_filtered)
-    # cv2.imshow('show', mask_filtered)
-    cv2.imshow('show', mask)
+    # cv2.imshow('mask_filtered', mask_filtered)
+    cv2.imshow('mask', mask)
+    # cv2.imshow('rgb', rgb)
+    # cv2.imshow('rgb_no_target', rgb_no_target)
     cv2.waitKey(1)
 
 
 
-def run_bg_genvid(input_dir):
+def run_bg_genvid(input_dir, fps):
     cmd = ["python", f"{os.path.dirname(__file__)}/genvid.py"]
     cmd.extend(["--input-dir", input_dir])
-    
+    cmd.extend(["--fps", str(fps)])
 
     process = subprocess.Popen(
         cmd,
@@ -63,6 +75,8 @@ def run_bg_genvid(input_dir):
 
 if __name__ == '__main__':
     N_npc = 0
+    fps = 30
+    episode_time = 10
     data_dir = f"./data_dir_{datetime.datetime.now().strftime("%y-%m-%d-%H-%S")}"
     os.makedirs(data_dir, exist_ok=True)
     
@@ -71,7 +85,8 @@ if __name__ == '__main__':
     # env = gym.make('UnrealTrack-Old_Town-ContinuousColorMask-v0')
     # env = gym.make('UnrealTrack-ContainerYard_Night-ContinuousColorMask-v0')
     env_unwrapped = env.unwrapped
-    env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=(240,240))
+    env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=(480,480))
+    # env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=(240,240))
     env.unwrapped.agents_category=['player'] #choose the agent type in the scene
     env = augmentation.RandomPopulationWrapper(env, 2 + N_npc, 2 + N_npc, random_target=False)
     env.reset()
@@ -88,9 +103,6 @@ if __name__ == '__main__':
         agent_1 = Nav2GoalAgent(env.action_space[1], env.unwrapped.reset_area, max_len=100)
         agent_other_npc = [PoseTracker(env.action_space[idx], expected_distance=random.uniform(100, 200), expected_angle=random.uniform(-100, 100)) for idx in range(2, 2 + N_npc)]
 
-        # env.unwrapped.unrealcv.set_hide_obj(env.unwrapped.player_list[env.unwrapped.tracker_id])
-        # env.unwrapped.unrealcv.destroy_obj(env.unwrapped.player_list[env.unwrapped.tracker_id])
-
         print(obs.shape)
         action_traj = {'agent_0': [], 'agent_1': []}
         episode_dir = f"{data_dir}/{env_unwrapped.count_eps:d}"
@@ -99,70 +111,30 @@ if __name__ == '__main__':
         count_step = 0
         t0 = time.time()
 
-        # env.unwrapped.unrealcv.set_cam_audiorecord(env.unwrapped.cam_list[env.unwrapped.tracker_id], 'on')
-        while True:
+        env.unwrapped.unrealcv.start_record(
+            env.unwrapped.cam_list[env.unwrapped.tracker_id],
+            f'{episode_dir}/.png',
+            episode_time, 
+            fps=fps,
+            target_to_hide=env.unwrapped.player_list[env.unwrapped.target_id]
+        )
+        while env.unwrapped.unrealcv.get_record_status(env.unwrapped.cam_list[env.unwrapped.tracker_id]):
             obj_poses = env.unwrapped.obj_poses
-            # action_0 = agent_0.act(obs, rewards, done)
-            # action_1 = agent_1.act(obs, rewards, done)
             action_0 = agent_0.act(obj_poses[0], obj_poses[1])
             action_1 = agent_1.act(obj_poses[1])
             action_other_npc = [agent_other_npc[idx].act(obj_poses[idx + 2], obj_poses[1]) for idx in range(len(agent_other_npc))]
-
-            # 暂停后获取obs再resume 保证同步 运行速度损失不明显
-            env.unwrapped.unrealcv.set_pause()
-            assert env.unwrapped.unrealcv.get_is_paused()
-
-            # test_img = env.unwrapped.unrealcv.get_objlit(
-            #     env.unwrapped.cam_list[env.unwrapped.tracker_id],
-            #     'bmp',
-            #     env.unwrapped.player_list[env.unwrapped.target_id]
-            # )
-            # env.unwrapped.unrealcv.get_hwobs(
-            #     env.unwrapped.cam_list[env.unwrapped.tracker_id],
-            #     f"C:\\Users\\hulc\\Desktop\\{count_step}.bmp",
-            #     env.unwrapped.player_list[env.unwrapped.target_id]
-            # )
-
-            obs = env.unwrapped.get_obs()
-
-            env.unwrapped.unrealcv.set_hide_obj(env.unwrapped.player_list[env.unwrapped.target_id])
-            hide_obs = env.unwrapped.get_obs()
-            env.unwrapped.unrealcv.set_show_obj(env.unwrapped.player_list[env.unwrapped.target_id])
-
-            env.unwrapped.unrealcv.set_resume()
-            assert not env.unwrapped.unrealcv.get_is_paused()
-
-            _, __, done, info = env.step([action_0, action_1] + action_other_npc)
-            #
-
-            # test_img_path = f"C:\\Users\\hulc\\Desktop\\{count_step}_rgb.bmp"
-            # if os.path.exists(test_img_path):
-            #     test_img = cv2.imread(
-            #         test_img_path,
-            #         cv2.IMREAD_COLOR
-            #     )
-            #     cv2.imshow('test_img', test_img)
-            #     cv2.waitKey(1)
-            # else:
-            #     print(test_img_path, "not found")
-
-            handle_obs(obs, episode_dir, str(count_step))
-            handle_obs(hide_obs, episode_dir, str(count_step) + "_HIDE")
+            env.unwrapped.step_action([action_0, action_1] + action_other_npc)
             action_traj['agent_0'].append(action_0)
             action_traj['agent_1'].append(action_1)
 
-            # print("info['Done']", info['Done'])
-            # print("done", done)
-            if info['Done'] or done or count_step >= 100:
-                # env.unwrapped.unrealcv.set_cam_audiorecord(env.unwrapped.cam_list[env.unwrapped.tracker_id], 'off')
-
-                import json
-                with open(f"{episode_dir}/info.json", 'w') as f:
-                    json.dump({'pos':env_unwrapped.trajectory, 'act':action_traj}, f)
-                fps = count_step / (time.time() - t0)
-                print ('Fps:' + str(fps))
-                run_bg_genvid(episode_dir)
-                break
             count_step += 1
+            time.sleep(0.1)
+
+        fps_ = (fps * episode_time) / (time.time() - t0)
+        print ('推算渲染速度相对真实时间Fps (仅参考):' + str(fps_))
+        with open(f"{episode_dir}/info.json", 'w') as f:
+            json.dump({'pos':env_unwrapped.trajectory, 'act':action_traj}, f)
+        run_bg_genvid(episode_dir, fps)
+
 
     env.close()
