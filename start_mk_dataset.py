@@ -7,6 +7,8 @@ import os, sys
 import datetime
 import subprocess
 import numpy as np
+from uhtk.imitation.traj import trajectory
+from uhtk.imitation.utils import safe_dump
 from gym_unrealcv.envs.tracking.baseline import PoseTracker, Nav2GoalAgent
 from gym_unrealcv.envs.wrappers import time_dilation, early_done, monitor, augmentation, configUE,agents
 
@@ -77,11 +79,11 @@ if __name__ == '__main__':
     N_npc = 0
     fps = 30
     episode_time = 10
+    SAVE_TRAJ = True
     data_dir = f"./data_dir_{datetime.datetime.now().strftime("%y-%m-%d-%H-%S")}"
     os.makedirs(data_dir, exist_ok=True)
     
     env = gym.make('UnrealTrack-HUAWEI_Project-ContinuousColorMask-v0')
-    env_unwrapped = env.unwrapped
     env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=(480,480))
     # env_unwrapped.unrealcv.config_ue(resolution=(240, 240), low_quality=True, disable_all_screen_messages=False)
     env.unwrapped.agents_category=['player'] #choose the agent type in the scene
@@ -92,20 +94,22 @@ if __name__ == '__main__':
     rewards = 0
     done = False
     for i in range(episode_count):
+        if SAVE_TRAJ:
+            uhtk_traj = trajectory(traj_limit=5000, env_id=0)
+            dict_traj = {}; dict_traj['state_agent_0'] = []; dict_traj['real_time'] = []
+            for i in range(2 + N_npc): dict_traj[f'action_agent_{i}'] = []
+
         env.seed(i)
-        env_unwrapped.direction = 2*np.pi/8.0 * env_unwrapped.count_eps
+        env.unwrapped.direction = 2*np.pi/8.0 * env.unwrapped.count_eps
         obs = env.reset()
         agent_0 = PoseTracker(env.action_space[0], env.unwrapped.reward_params['exp_distance'])
         agent_1 = Nav2GoalAgent(env.action_space[1], env.unwrapped.reset_area, max_len=100)
         agent_other_npc = [PoseTracker(env.action_space[idx], expected_distance=random.uniform(100, 200), expected_angle=random.uniform(-100, 100)) for idx in range(2, 2 + N_npc)]
-
-        print(obs.shape)
-        action_traj = {'agent_0': [], 'agent_1': []}
-        episode_dir = f"{data_dir}/{env_unwrapped.count_eps:d}"
+        
+        episode_dir = f"{data_dir}/{env.unwrapped.count_eps:d}"
         os.makedirs(episode_dir, exist_ok=True)
         count_step = 0
         t0 = time.time()
-
         env.unwrapped.unrealcv.start_record(
             env.unwrapped.cam_list[env.unwrapped.tracker_id],
             f'{episode_dir}/.png',
@@ -118,17 +122,36 @@ if __name__ == '__main__':
             action_0 = agent_0.act(obj_poses[0], obj_poses[1])
             action_1 = agent_1.act(obj_poses[1])
             action_other_npc = [agent_other_npc[idx].act(obj_poses[idx + 2], obj_poses[1]) for idx in range(len(agent_other_npc))]
-            env.unwrapped.step_action([action_0, action_1] + action_other_npc)
-            action_traj['agent_0'].append(action_0)
-            action_traj['agent_1'].append(action_1)
+            actions = [action_0, action_1] + action_other_npc
+            env.unwrapped.step_action(actions)
+
+            if SAVE_TRAJ:
+                for i, action in enumerate(actions):
+                    dict_traj[f'action_agent_{i}'].append(action)
+                    uhtk_traj.remember(f'action_agent_{i}', np.array(action))
+
+                tracker_pos = env.unwrapped.unrealcv.get_obj_location(env.unwrapped.player_list[0])
+                tracker_rot = env.unwrapped.unrealcv.get_obj_rotation(env.unwrapped.player_list[0])
+                Pose = tracker_pos + tracker_rot
+                dict_traj['state_agent_0'].append(Pose)
+                uhtk_traj.remember('state_agent_0', np.array(Pose))
+
+                real_time = time.time() - t0
+                dict_traj['real_time'] = real_time
+                uhtk_traj.remember('real_time', np.float32(real_time))
+
+                uhtk_traj.time_shift()
 
             count_step += 1
             time.sleep(0.1)
 
         fps_ = (fps * episode_time) / (time.time() - t0)
         print ('推算渲染速度相对真实时间Fps (仅参考):' + str(fps_))
-        with open(f"{episode_dir}/info.json", 'w') as f:
-            json.dump({'pos':env_unwrapped.trajectory, 'act':action_traj}, f)
+        with open(f"{episode_dir}/dict_traj.json", 'w') as f:
+            json.dump(dict_traj, f, indent=2)
+        uhtk_traj.cut_tail()
+        safe_dump(uhtk_traj, f"{episode_dir}/traj-hw-0.d")
+            
         run_bg_genvid(episode_dir, fps)
 
 

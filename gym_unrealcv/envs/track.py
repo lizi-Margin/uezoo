@@ -71,7 +71,7 @@ class Track(UnrealCv_base):
     def reset(self):
         hide_cmds = [self.unrealcv.set_show_obj(obj, return_cmd=True) for i, obj in enumerate(self.player_list)]
         self.unrealcv.batch_cmd(hide_cmds, None)
-        self.trajectory = []
+        # self.trajectory = []
         # initialize the environment
         observations = super(Track, self).reset()
         target_pos = self.unrealcv.get_obj_location(self.player_list[self.target_id])
@@ -142,10 +142,7 @@ class Track(UnrealCv_base):
         # update the observation
         observations, self.obj_poses, self.img_show = self.update_observation(self.player_list, self.cam_list, self.cam_flag, self.observation_type)
         self.count_lost = 0
-        tracker_pos = self.unrealcv.get_obj_location(self.player_list[self.tracker_id])
-        tracker_rot = self.unrealcv.get_obj_rotation(self.player_list[self.tracker_id])
-        Pose = tracker_pos + tracker_rot
-        self.trajectory.append(Pose)
+
 
 
         # set npc location
@@ -158,7 +155,7 @@ class Track(UnrealCv_base):
             except KeyError:
                 pass
 
-        assert isinstance(Pose, list) and len(Pose) == 6, f"{Pose}"
+        # assert isinstance(Pose, list) and len(Pose) == 6, f"{Pose}"
 
         return observations
     

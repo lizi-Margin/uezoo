@@ -6,6 +6,9 @@ import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
 
+VIDEO_QUALITY = 100
+RM_AFTER_GENVID = True
+
 def combine_3vids(video1_path, video2_path, video3_path, output_path):
     cap1 = cv2.VideoCapture(video1_path)
     cap2 = cv2.VideoCapture(video2_path)
@@ -17,6 +20,7 @@ def combine_3vids(video1_path, video2_path, video3_path, output_path):
     
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (width*3, height))
+    out.set(cv2.VIDEOWRITER_PROP_QUALITY, VIDEO_QUALITY)
     
     while True:
         ret1, frame1 = cap1.read()
@@ -119,6 +123,7 @@ def main():
         # 使用MP4V编码器，生成mp4格式视频
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(output_file, fourcc, args.fps, (width, height))
+        out.set(cv2.VIDEOWRITER_PROP_QUALITY, VIDEO_QUALITY)
 
         if not out.isOpened():
             tqdm.write(f"无法创建视频文件: {output_file}，可能是编码器不支持")
@@ -140,6 +145,9 @@ def main():
         # 释放资源
         out.release()
         tqdm.write(f"成功生成视频: {output_file}")
+        if RM_AFTER_GENVID:
+            for file_path in tqdm(sorted_files, desc=f"删除原图片 {seq_name}", leave=True):
+                os.remove(file_path)
 
     print("所有序列处理完成！")
 
