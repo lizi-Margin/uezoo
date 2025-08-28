@@ -80,13 +80,10 @@ if __name__ == '__main__':
     data_dir = f"./data_dir_{datetime.datetime.now().strftime("%y-%m-%d-%H-%S")}"
     os.makedirs(data_dir, exist_ok=True)
     
-    # render = True
     env = gym.make('UnrealTrack-HUAWEI_Project-ContinuousColorMask-v0')
-    # env = gym.make('UnrealTrack-Old_Town-ContinuousColorMask-v0')
-    # env = gym.make('UnrealTrack-ContainerYard_Night-ContinuousColorMask-v0')
     env_unwrapped = env.unwrapped
     env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=(480,480))
-    # env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=(240,240))
+    # env_unwrapped.unrealcv.config_ue(resolution=(240, 240), low_quality=True, disable_all_screen_messages=False)
     env.unwrapped.agents_category=['player'] #choose the agent type in the scene
     env = augmentation.RandomPopulationWrapper(env, 2 + N_npc, 2 + N_npc, random_target=False)
     env.reset()
@@ -97,7 +94,6 @@ if __name__ == '__main__':
     for i in range(episode_count):
         env.seed(i)
         env_unwrapped.direction = 2*np.pi/8.0 * env_unwrapped.count_eps
-        # env_unwrapped.unrealcv.config_ue(resolution=(240, 240), low_quality=True, disable_all_screen_messages=False)
         obs = env.reset()
         agent_0 = PoseTracker(env.action_space[0], env.unwrapped.reward_params['exp_distance'])
         agent_1 = Nav2GoalAgent(env.action_space[1], env.unwrapped.reset_area, max_len=100)
@@ -107,7 +103,6 @@ if __name__ == '__main__':
         action_traj = {'agent_0': [], 'agent_1': []}
         episode_dir = f"{data_dir}/{env_unwrapped.count_eps:d}"
         os.makedirs(episode_dir, exist_ok=True)
-        # handle_obs(obs, episode_dir, env_unwrapped.count_steps)
         count_step = 0
         t0 = time.time()
 
