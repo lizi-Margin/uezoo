@@ -337,7 +337,8 @@ class Nav2GoalAgent(object):
             self.d_move_ave = 5
             if ref_goal is None or np.random.random() > self.random_th:
                 self.goal = self.generate_goal(self.goal_area, self.fix)
-                self.velocity = np.random.randint(0.5*self.velocity_high, self.velocity_high)
+                # self.velocity = np.random.randint(0.5*self.velocity_high, self.velocity_high)
+                self.velocity = np.random.randint(0.6*self.velocity_high, self.velocity_high)
             else:
                 self.goal = ref_goal
             self.step_counter = 0

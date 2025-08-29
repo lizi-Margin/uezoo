@@ -98,15 +98,16 @@ def get_latest_obs(input_dir):
 
 if __name__ == '__main__':
     N_npc = 0
-    # fps = 30; dilation = 0.2
-    fps = 15; dilation = 0.4
+    # resolution=(480,480,); fps = 30; dilation = 0.2
+    # resolution=(480,480,); fps = 15; dilation = 0.4
+    resolution=(240,240,); fps = 15; dilation = 0.8
     episode_time = 10
     SAVE_TRAJ = True
     data_dir = f"./data_dir_{datetime.datetime.now().strftime("%y-%m-%d-%H-%S")}"
     os.makedirs(data_dir, exist_ok=True)
     
     env = gym.make('UnrealTrack-HUAWEI_Project-ContinuousColorMask-v0')
-    env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=(480,480))
+    env = configUE.ConfigUEWrapper(env, offscreen=False,resolution=resolution)
     # env_unwrapped.unrealcv.config_ue(resolution=(240, 240), low_quality=True, disable_all_screen_messages=False)
     env.unwrapped.agents_category=['player'] #choose the agent type in the scene
     env = augmentation.RandomPopulationWrapper(env, 2 + N_npc, 2 + N_npc, random_target=False)
@@ -115,21 +116,22 @@ if __name__ == '__main__':
     episode_count = 100
     rewards = 0
     done = False
-    for i in range(episode_count):
+    for e in range(episode_count):
         if SAVE_TRAJ:
             uhtk_traj = trajectory(traj_limit=500, env_id=0)
             dict_traj = {}; dict_traj['posrot_agent_0'] = []; dict_traj['real_time'] = []
             for i in range(2 + N_npc): dict_traj[f'action_agent_{i}'] = []
 
-        env.seed(i)
+        env.seed(e)
         # env.unwrapped.direction = 2*np.pi/8.0 * env.unwrapped.count_eps
         env.unwrapped.unrealcv.set_global_time_dilation(dilation)
         obs = env.reset()
-        agent_0 = PoseTracker(env.action_space[0], env.unwrapped.reward_params['exp_distance'])
-        agent_1 = Nav2GoalAgent(env.action_space[1], env.unwrapped.reset_area, max_len=100)
+        agent_0 = PoseTracker(env.action_space[0], expected_distance=random.uniform(200,700), expected_angle=random.uniform(-20, 20))
+        agent_1 = Nav2GoalAgent(env.action_space[1], env.unwrapped.reset_area, max_len=6)
+        # agent_1 = Interna
         agent_other_npc = [PoseTracker(env.action_space[idx], expected_distance=random.uniform(100, 200), expected_angle=random.uniform(-100, 100)) for idx in range(2, 2 + N_npc)]
         
-        episode_dir = f"{data_dir}/{env.unwrapped.count_eps:d}"
+        episode_dir = f"{data_dir}/{e}"
         os.makedirs(episode_dir, exist_ok=True)
         count_step = 0
         t0 = time.time()
@@ -141,7 +143,7 @@ if __name__ == '__main__':
             target_to_hide=env.unwrapped.player_list[env.unwrapped.target_id]
         )
         while env.unwrapped.unrealcv.get_record_status(env.unwrapped.cam_list[env.unwrapped.tracker_id]):
-            sleeper = Sleeper(tick=1.0)
+            sleeper = Sleeper(tick=0.3)
             obj_poses = env.unwrapped.obj_poses
             action_0 = agent_0.act(obj_poses[0], obj_poses[1])
             action_1 = agent_1.act(obj_poses[1])
