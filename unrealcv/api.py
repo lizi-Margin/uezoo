@@ -275,7 +275,7 @@ class UnrealCv_API(object):
         image = self.decoder.decode_img(self.client.request(cmd), mode, inverse=False)
         return image
     
-    def start_record(self, cam_id, mode, time_s, fps=25, target_to_hide=None):
+    def start_record(self, cam_id, mode, time_s, target_to_hide=None, fps=25):
         assert time_s > 0
         
         if '.' in mode:
@@ -283,6 +283,16 @@ class UnrealCv_API(object):
 
         cmd = f'vset /camera/{cam_id}/record {mode} {time_s} {fps}'
         if target_to_hide is not None: cmd += f" {target_to_hide}"
+        print(cmd)
+        self.client.request(cmd)
+    
+    def start_bullet_time_record(self, cam_id, mode, time_s, target_to_hide, fps=25):
+        assert time_s > 0
+        
+        if '.' in mode:
+            mode = os.path.abspath(mode)
+
+        cmd = f'vset /camera/{cam_id}/bullet_time_record {mode} {time_s} {fps} {target_to_hide}'
         print(cmd)
         self.client.request(cmd)
     

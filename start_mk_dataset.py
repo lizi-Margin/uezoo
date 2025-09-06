@@ -75,8 +75,9 @@ def run_bg_genvid(input_dir, fps):
     print(f"已启动后台进程，进程ID: {process.pid}")
     return process
 
-
+MaxIndex = 0
 def get_latest_obs(input_dir):
+    global MaxIndex
     max_index = -1
     max_path = None
     pattern_png = re.compile(r'^(\d+)_rgb\.png$')
@@ -91,17 +92,20 @@ def get_latest_obs(input_dir):
     
     if max_index == -1:
         assert False, "pattern not match"
+    MaxIndex = max_index
     
     obs = cv2.imread(max_path)
     return obs
 
 
 if __name__ == '__main__':
+    BULLET_TIME = False
     N_npc = 0
-    # resolution=(480,480,); fps = 30; dilation = 0.2
-    # resolution=(480,480,); fps = 15; dilation = 0.4
-    resolution=(240,240,); fps = 15; dilation = 0.8
-    episode_time = 10
+    # resolution=(480,480,); fps = 30; dilation = 0.2; episode_time = 10
+    # resolution=(480,480,); fps = 15; dilation = 0.4; episode_time = 10
+    resolution=(240,240,); fps = 15; dilation = 0.8; episode_time = 10
+    # resolution=(240,240,); fps = 25; dilation = 1.; episode_time = 20
+    
     SAVE_TRAJ = True
     data_dir = f"./data_dir_{datetime.datetime.now().strftime("%y-%m-%d-%H-%S")}"
     os.makedirs(data_dir, exist_ok=True)
@@ -135,13 +139,22 @@ if __name__ == '__main__':
         os.makedirs(episode_dir, exist_ok=True)
         count_step = 0
         t0 = time.time()
-        env.unwrapped.unrealcv.start_record(
-            env.unwrapped.cam_list[env.unwrapped.tracker_id],
-            f'{episode_dir}/.png',
-            episode_time, 
-            fps=fps,
-            target_to_hide=env.unwrapped.player_list[env.unwrapped.target_id]
-        )
+        if BULLET_TIME:
+            env.unwrapped.unrealcv.start_bullet_time_record(
+                env.unwrapped.cam_list[env.unwrapped.tracker_id],
+                f'{episode_dir}/.png',
+                episode_time, 
+                target_to_hide=env.unwrapped.player_list[env.unwrapped.target_id],
+                fps=fps,
+            )
+        else:
+            env.unwrapped.unrealcv.start_record(
+                env.unwrapped.cam_list[env.unwrapped.tracker_id],
+                f'{episode_dir}/.png',
+                episode_time, 
+                target_to_hide=env.unwrapped.player_list[env.unwrapped.target_id],
+                fps=fps,
+            )
         while env.unwrapped.unrealcv.get_record_status(env.unwrapped.cam_list[env.unwrapped.tracker_id]):
             sleeper = Sleeper(tick=0.3)
             obj_poses = env.unwrapped.obj_poses
@@ -176,8 +189,11 @@ if __name__ == '__main__':
             count_step += 1
             sleeper.sleep()
 
-        fps_ = (fps * episode_time) / (time.time() - t0)
-        print ('推算渲染速度相对真实时间Fps (仅参考):' + str(fps_))
+        print ('推算渲染速度相对真实时间Fps:' + str((fps * episode_time) / (time.time() - t0)))
+        print ('渲染速度相对真实时间Fps (仅参考):' + str((MaxIndex + 1) / (time.time() - t0)))
+        print(f"共渲染: {MaxIndex + 1}帧")
+        print(f"真实时间: {(time.time() - t0)}s")
+        print(f"虚拟时间: {episode_time}s")
         if SAVE_TRAJ:
             with open(f"{episode_dir}/dict_traj.json", 'w') as f:
                 json.dump(dict_traj, f, indent=2)
