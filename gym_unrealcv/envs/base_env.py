@@ -12,6 +12,23 @@ from unrealcv.launcher import RunUnreal
 from gym_unrealcv.envs.agent.character import Character_API
 import random
 import sys
+
+
+def _ensure_external_binary_unrealcv_ini(env_bin):
+    """Create the launcher INI when an external packaged binary has none.
+
+    ``unrealcv.launcher.RunUnreal`` can read a missing INI by falling back to
+    port 9000, but its subsequent ``write_port`` call opens the same file in
+    read mode.  Official UnrealZoo packages ship the file; arbitrary packaged
+    projects commonly do not, especially after ``RunUnreal.close`` removes it.
+    """
+    ini_path = os.path.join(os.path.dirname(os.path.abspath(env_bin)), 'unrealcv.ini')
+    if not os.path.exists(ini_path):
+        with open(ini_path, 'w', encoding='utf-8') as ini_file:
+            ini_file.write('[UnrealCV.Core]\nPort=9000\nWidth=640\nHeight=480\n')
+    return ini_path
+
+
 ''' 
 It is a base env for general purpose agent-env interaction, including single/multi-agent navigation, tracking, etc.
 Observation : raw color image and depth
@@ -133,6 +150,7 @@ class UnrealCv_base(gym.Env):
         env_bin_override = os.environ.get('GYM_UNREALCV_BINARY_OVERRIDE')
         if env_bin_override:
             env_bin = env_bin_override
+            _ensure_external_binary_unrealcv_ini(env_bin)
 
         self.ue_binary = RunUnreal(ENV_BIN=env_bin, ENV_MAP=env_map)
 
